@@ -29,7 +29,12 @@ QPushButton:pressed
 
 }
 #time_label{
-
+    color:rgb(100,100,100,250);
+    font-size:33px;
+    font-weight:bold;
+    font-family:Roman times;
+}
+#name_label{
     color:rgb(100,100,100,250);
     font-size:33px;
     font-weight:bold;

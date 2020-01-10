@@ -6,6 +6,8 @@ from PyQt5.QtWidgets import (QApplication, QMenuBar, QGridLayout, QPushButton, Q
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import QDate, QTime, QTimer, Qt
 
+from face_dbinit import *
+
 style_file = './UIface.qss'
 
 
@@ -125,7 +127,7 @@ class MainUI(QtWidgets.QWidget):
         """
         self.name_label = QLabel(self)
         self.name_label.setObjectName('name_label')
-        self.name_label.setText("显示测试")
+        self.name_label.setText("暂无打卡信息")
         self.name_label.setAlignment(Qt.AlignCenter)
         # self.name_label.setGeometry(50, 500, 20, 20)
         self.name_label.setFrameShape(QtWidgets.QFrame.Box)
@@ -151,7 +153,9 @@ class MainUI(QtWidgets.QWidget):
     def on_admin_dialog(self):
         admin = AdminDialog()
         admin.setStyleSheet(CommonHelper.read_qss(style_file))
-        self.admin_login = admin.exec_()
+        self.admin_dialog = admin.exec_()
+        if admin.contrast():
+            self.admin_login.setText(admin.contrast())  # 更改菜单名
     
     def on_info_dialog(self):
         info = InfoDialog()
@@ -210,9 +214,14 @@ class AdminDialog(QDialog):
         self.name_edit = None
         self.passwd_edit = None
         self.glayout = None
+        self.admin_name = None
         
         self.set_login()
         self.admin_layout()
+        self.activity()
+    
+    def activity(self):
+        self.button_login.clicked.connect(lambda: self.contrast())
     
     def set_login(self):
         self.label_name = QLabel("用户名:", self)
@@ -235,6 +244,18 @@ class AdminDialog(QDialog):
         self.glayout.addWidget(self.name_edit, 0, 1, 1, 2)
         self.glayout.addWidget(self.passwd_edit, 1, 1, 1, 2)
         self.glayout.addWidget(self.button_login, 2, 1)
+    
+    def contrast(self):
+        """
+        将用户名、密码与数据库进行对比
+        :return:
+        """
+        self.admin_name = load_admin(self.name_edit.text(), self.passwd_edit.text())
+        if self.admin_name:
+            self.close()
+            return self.admin_name
+        else:
+            pass
 
 
 class InfoDialog(QDialog):
