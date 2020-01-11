@@ -1,14 +1,24 @@
 # coding = utf-8
 import sys
+import cv2
+import dlib
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import (QApplication, QMenuBar, QGridLayout, QPushButton, QDialog,
-                             QLabel, QTableWidget, QHeaderView, QLineEdit, QFormLayout)
-from PyQt5.QtGui import QPixmap, QFont
+                             QLabel, QTableView, QHeaderView, QLineEdit, QFormLayout, QMessageBox, QTableWidgetItem)
+from PyQt5.QtGui import QPixmap, QFont, QImage
 from PyQt5.QtCore import QDate, QTime, QTimer, Qt
-
+from PyQt5.QtSql import QSqlDatabase, QSqlQueryModel
 from face_dbinit import *
+from camera_show import *
+import numpy as np
+import time
 
 style_file = './UIface.qss'
+facerec = dlib.face_recognition_model_v1("./model/dlib_face_recognition_resnet_model_v1.dat")
+# Dlib 预测器
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor('./model/shape_predictor_68_face_landmarks.dat')
+Path_face = "./data/face_img_database/"
 
 
 class MainUI(QtWidgets.QWidget):
@@ -44,6 +54,10 @@ class MainUI(QtWidgets.QWidget):
         self.log_dialog = None  # 日志弹窗
         self.admin_dialog = None  # 管理员弹窗
         self.info_dialog = None  # 信息录入弹窗
+        self.pic_num = 0
+        # 相机定时器
+        self.timer_camera = QTimer()
+        self.cap = cv2.VideoCapture()  # 设置相机
         
         # 布局初始化
         self.glayout = QGridLayout()
@@ -69,10 +83,11 @@ class MainUI(QtWidgets.QWidget):
         控件信号处理
         :return:
         """
-        
         self.logcat_menu.triggered.connect(lambda: self.on_log_dialog())
         self.admin_login.triggered.connect(lambda: self.on_admin_dialog())
         self.button_in.clicked.connect(lambda: self.on_info_dialog())
+        self.button_check.clicked.connect(lambda: self.new_create_time())
+        self.timer_camera.timeout.connect(lambda: self.show_camera())
     
     def set_menu(self):
         """
@@ -161,6 +176,68 @@ class MainUI(QtWidgets.QWidget):
         info = InfoDialog()
         info.setStyleSheet(CommonHelper.read_qss(style_file))
         self.info_dialog = info.exec_()
+        # if info.insert_data() is True:
+        #     self.new_create_time()
+        # time.sleep(10)
+        # self.timer_camera.stop()
+    
+    def new_create_time(self):
+        if self.timer_camera.isActive() is False:
+            
+            flag = self.cap.open(0)
+            if flag is False:
+                QMessageBox.warning(self, u"警告", u"请检测相机与电脑是否连接正确",
+                                    buttons=QMessageBox.Ok,
+                                    defaultButton=QMessageBox.Ok)
+            else:
+                self.timer_camera.start(30)
+                self.button_check.setText("停止打卡")
+        else:
+            self.timer_camera.stop()
+            self.cap.release()
+            self.button_check.setText("开始打卡")
+            self.image.setPixmap(QPixmap(r"G:\githublocal\drawable\MaXlogo.jpg").scaled(600, 400))
+    
+    def show_camera(self):
+        flag, self.im_rd = self.cap.read()
+        # key = cv2.waitKey(10)
+        # 人脸数
+        dets = detector(self.im_rd, 1)
+        # 检测到人脸
+        if len(dets) != 0:
+            equal_face = dets[0]
+            # 占比最大的脸
+            max_area = 0
+            for det in dets:
+                w = det.right() - det.left()
+                h = det.top() - det.bottom()
+                if w * h > max_area:
+                    equal_face = det
+                    max_area = w * h
+                    # 绘制矩形框
+            cv2.rectangle(self.im_rd, tuple([equal_face.left(), equal_face.top()]),
+                          tuple([equal_face.right(), equal_face.bottom()]),
+                          (255, 0, 0), 2)
+            show = cv2.resize(self.im_rd, (600, 400))
+            show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+            show_image = QImage(show.data, show.shape[1], show.shape[0], QImage.Format_RGB888)
+            self.image.setPixmap(QPixmap.fromImage(show_image))
+            
+            # 保存截图
+            face_height = equal_face.bottom() - equal_face.top()
+            face_width = equal_face.right() - equal_face.left()
+            im_blank = np.zeros((face_height, face_width, 3), np.uint8)  # 数组
+            try:
+                name = "123"
+                print(name)
+                for ii in range(face_height):
+                    for jj in range(face_width):
+                        im_blank[ii][jj] = self.im_rd[int(equal_face.top()) + ii][int(equal_face.left()) + jj]
+                self.pic_num += 1
+                cv2.imwrite(Path_face + name + "/face_img" + str(self.pic_num) + ".jpg", im_blank)  # 中文路径无法存储,故采用id为文件名
+            
+            except:
+                print("异常")
 
 
 class LogDialog(QDialog):
@@ -172,10 +249,13 @@ class LogDialog(QDialog):
         super(LogDialog, self).__init__(parent)
         self.setWindowTitle("打卡日志")
         self.setWindowModality(Qt.ApplicationModal)  # 隐藏父窗口
-        self.setFixedSize(500, 480)
+        self.setFixedSize(600, 480)
         
         self.table = None
         self.button_export = None
+        self.model = None
+        
+        self.load_data()
         self.log_dialog()
     
     def log_dialog(self):
@@ -183,18 +263,33 @@ class LogDialog(QDialog):
         日志弹窗
         :return:
         """
-        self.table = QTableWidget(500, 5, self)
-        self.table.resize(500, 400)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)  # 设置表单不可编辑
-        self.table.setSelectionMode(QTableWidget.NoSelection)  # 设置表单不可选中
-        header = ["ID", "姓名", "打卡时间", "是否迟到", "迟到时长"]
-        self.table.setHorizontalHeaderLabels(header)
+        self.table = QTableView(self)
+        self.table.resize(600, 400)
+        self.table.setModel(self.model)
+        self.table.setEditTriggers(QTableView.NoEditTriggers)  # 设置表单不可编辑
+        self.table.setSelectionMode(QTableView.NoSelection)  # 设置表单不可选中
         self.table.resizeColumnsToContents()  # 列根据内容调整大小
         self.table.resizeRowsToContents()  # 行根据内容调整大小
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)  # 表单自适应
-        
         self.button_export = QPushButton("导出日志", self)
-        self.button_export.move(180, 415)
+        self.button_export.move(220, 415)
+    
+    def load_data(self):
+        """
+        使用自带的QSqlQueryModel方法进行数据库查询
+        :return:
+        """
+        db = QSqlDatabase.addDatabase("QSQLITE")  # 选着数据库类型
+        db.setDatabaseName("./sys_db.db")
+        db.open()
+        self.model = QSqlQueryModel()
+        self.model.setQuery(
+            """select tb1.id,tb1.sname,tb2.clocktime,tb2.latetime from
+             staff_tb as tb1 join logcat_tb as tb2 where tb1.id = tb2.id""")
+        self.model.setHeaderData(0, Qt.Horizontal, "ID")
+        self.model.setHeaderData(1, Qt.Horizontal, "姓名")
+        self.model.setHeaderData(2, Qt.Horizontal, "打卡时间")
+        self.model.setHeaderData(3, Qt.Horizontal, "迟到时长")
 
 
 class AdminDialog(QDialog):
@@ -221,7 +316,7 @@ class AdminDialog(QDialog):
         self.activity()
     
     def activity(self):
-        self.button_login.clicked.connect(lambda: self.contrast())
+        self.button_login.clicked.connect(self.contrast)
     
     def set_login(self):
         self.label_name = QLabel("用户名:", self)
@@ -250,12 +345,15 @@ class AdminDialog(QDialog):
         将用户名、密码与数据库进行对比
         :return:
         """
-        self.admin_name = load_admin(self.name_edit.text(), self.passwd_edit.text())
-        if self.admin_name:
-            self.close()
-            return self.admin_name
-        else:
-            pass
+        if self.name_edit.text() and self.passwd_edit.text():
+            self.admin_name = load_admin(self.name_edit.text(), self.passwd_edit.text())
+            if self.admin_name:
+                self.close()
+                return self.admin_name
+            else:
+                self.name_edit.clear()
+                self.passwd_edit.clear()
+                QMessageBox.information(self, "提示", "用户名或密码错误", QMessageBox.Yes)
 
 
 class InfoDialog(QDialog):
@@ -276,6 +374,10 @@ class InfoDialog(QDialog):
         self.button_next = None
         
         self.set_info()
+        self.activity()
+    
+    def activity(self):
+        self.button_next.clicked.connect(self.insert_data)
     
     def set_info(self):
         self.flayout = QFormLayout()
@@ -301,6 +403,19 @@ class InfoDialog(QDialog):
         self.flayout.addRow(department_label, self.department_edit)
         self.flayout.addWidget(self.button_next)
         self.setLayout(self.flayout)
+    
+    def insert_data(self):
+        """
+        插入员工数据
+        :return:
+        """
+        if self.id_edit.text() and self.name_edit.text() and self.department_edit.text():
+            # insert_staff(self.id_edit.text(), self.name_edit.text(), self.department_edit.text())
+            self.close()
+            return True
+        else:
+            pass
+            # QMessageBox.information(self, "提示", "输入内容不能为空", QMessageBox.Yes)
 
 
 class CommonHelper:

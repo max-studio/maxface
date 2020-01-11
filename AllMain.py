@@ -228,10 +228,10 @@ class Ui_MainWindow(QtWidgets.QWidget):
             cv2.rectangle(self.im_rd, tuple([biggest_face.left(), biggest_face.top()]),
                           tuple([biggest_face.right(), biggest_face.bottom()]),
                           (255, 0, 0), 2)
-        show = cv2.resize(self.im_rd, (600, 500))
-        show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
-        showImage = QImage(show.data, show.shape[1], show.shape[0], QImage.Format_RGB888)
-        self.image.setPixmap(QPixmap.fromImage(showImage))
+            show = cv2.resize(self.im_rd, (600, 500))
+            show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+            showImage = QImage(show.data, show.shape[1], show.shape[0], QImage.Format_RGB888)
+            self.image.setPixmap(QPixmap.fromImage(showImage))
         
         # show = cv2.resize(self.im_rd, (600, 500))
         # show = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
@@ -258,24 +258,24 @@ class Ui_MainWindow(QtWidgets.QWidget):
         #         # self.OnFinishRegister()
         # print(features_known_arr[i][-1])
         
-        face_height = biggest_face.bottom() - biggest_face.top()
-        face_width = biggest_face.right() - biggest_face.left()
-        print(int(face_height), int(face_width))
-        im_blank = np.zeros((face_height, face_width, 3), np.uint8)
-        try:
-            print(self.name)
-            for ii in range(face_height):
-                for jj in range(face_width):
-                    im_blank[ii][jj] = self.im_rd[int(biggest_face.top()) + ii][int(biggest_face.left()) + jj]
-            self.pic_num += 1
-            # cv2.imwrite(Path_face+self.name +"/img_face_" + str(self.pic_num) + ".jpg",im_blank)#中文路径无法存储
-            
-            if len(self.name) > 0:
-                cv2.imencode('.jpg', im_blank)[1].tofile(
-                    Path_face + self.name + "/img_face_" + str(self.pic_num) + ".jpg")
-                print("写入本地：", str(Path_face + self.name) + "/img_face_" + str(self.pic_num) + ".jpg")
-        except:
-            print("保存照片异常,请对准摄像头")
+            face_height = biggest_face.bottom() - biggest_face.top()
+            face_width = biggest_face.right() - biggest_face.left()
+            print(int(face_height), int(face_width))
+            im_blank = np.zeros((face_height, face_width, 3), np.uint8)
+            try:
+                print(self.name)
+                for ii in range(face_height):
+                    for jj in range(face_width):
+                        im_blank[ii][jj] = self.im_rd[int(biggest_face.top()) + ii][int(biggest_face.left()) + jj]
+                self.pic_num += 1
+                # cv2.imwrite(Path_face+self.name +"/img_face_" + str(self.pic_num) + ".jpg",im_blank)#中文路径无法存储
+                
+                if len(self.name) > 0:
+                    cv2.imencode('.jpg', im_blank)[1].tofile(
+                        Path_face + self.name + "/img_face_" + str(self.pic_num) + ".jpg")
+                    print("写入本地：", str(Path_face + self.name) + "/img_face_" + str(self.pic_num) + ".jpg")
+            except:
+                print("保存照片异常,请对准摄像头")
         
         # elif n == 2:#识别人脸并打卡
         #     print("签到成功")
