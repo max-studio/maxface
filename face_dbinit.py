@@ -1,37 +1,42 @@
 # coding = utf-8
 import sqlite3
 import base64
+import os
+from reduce import *
 
 
 def init_db():
-    sql = sqlite3.connect("sys_db.db")  # 建立数据库连接
-    cur = sql.cursor()  # 得到游标对象
-    # 创建表
-    cur.executescript("""
-        create table if not exists staff_tb(
-            id int not null primary key,
-            sname varchar(40) not null ,
-            department varchar(40) not null
+    if os.path.exists("sys_db"):  # 判断数据库是否存在
+        pass
+    else:
+        sql = sqlite3.connect("sys_db.db")  # 建立数据库连接
+        cur = sql.cursor()  # 得到游标对象
+        # 创建表
+        cur.executescript("""
+            create table if not exists staff_tb(
+                id int not null primary key,
+                sname varchar(40) not null ,
+                department varchar(40) not null
+            );
+            create table if not exists logcat_tb(
+            id int not null references staff_tb(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            clocktime text not null,
+            latetime text not null,
+            primary key (id,clocktime)
         );
-        create table if not exists logcat_tb(
-        id int not null references staff_tb(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        clocktime text not null,
-        latetime text not null,
-        primary key (id,clocktime)
-    );
-        create table if not exists admin_tb(
-        id int not null primary key,
-        adname varchar(40) not null,
-        password varchar(30) not null
-    );
-        create table if not exists face_tb(
-        id int not null primary key references staff_tb(id) ON DELETE CASCADE ON UPDATE CASCADE,
-        facearray array not null
-    );
-    """)
-    cur.close()
-    sql.commit()
-    sql.close()
+            create table if not exists admin_tb(
+            id int not null primary key,
+            adname varchar(40) not null,
+            password varchar(30) not null
+        );
+            create table if not exists face_tb(
+            id int not null primary key references staff_tb(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            facearray array not null
+        );
+        """)
+        cur.close()
+        sql.commit()
+        sql.close()
 
 
 def insert_staff(id, name, depart):
@@ -68,7 +73,7 @@ def insert_face(id, face):
     sql = sqlite3.connect("sys_db.db")
     cur = sql.cursor()
     cur.execute("PRAGMA foreign_keys = ON;")
-    cur.execute("insert into face_tb(id,facearray) values (?,?)", (id, face))
+    cur.execute("insert into face_tb(id,facearray) values (?,?)", (id, reduce_data(face)))
     cur.close()
     sql.commit()
     sql.close()

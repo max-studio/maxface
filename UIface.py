@@ -1,17 +1,19 @@
 # coding = utf-8
 import sys
-import cv2
-import dlib
+import os
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import (QApplication, QMenuBar, QGridLayout, QPushButton, QDialog,
-                             QLabel, QTableView, QHeaderView, QLineEdit, QFormLayout, QMessageBox, QTableWidgetItem)
+                             QLabel, QTableView, QHeaderView, QLineEdit, QFormLayout, QMessageBox)
 from PyQt5.QtGui import QPixmap, QFont, QImage
 from PyQt5.QtCore import QDate, QTime, QTimer, Qt
 from PyQt5.QtSql import QSqlDatabase, QSqlQueryModel
+from PyQt5.Qt import QThread, QMutex
+from skimage import io as io2
 from face_dbinit import *
-from camera_show import *
+# from camera_show import *
 import numpy as np
-import time
+import cv2
+import dlib
 
 style_file = './UIface.qss'
 facerec = dlib.face_recognition_model_v1("./model/dlib_face_recognition_resnet_model_v1.dat")
@@ -228,14 +230,17 @@ class MainUI(QtWidgets.QWidget):
             face_width = equal_face.right() - equal_face.left()
             im_blank = np.zeros((face_height, face_width, 3), np.uint8)  # 数组
             try:
-                name = "123"
-                print(name)
+                id = "1234"
                 for ii in range(face_height):
                     for jj in range(face_width):
                         im_blank[ii][jj] = self.im_rd[int(equal_face.top()) + ii][int(equal_face.left()) + jj]
                 self.pic_num += 1
-                cv2.imwrite(Path_face + name + "/face_img" + str(self.pic_num) + ".jpg", im_blank)  # 中文路径无法存储,故采用id为文件名
-            
+                # cv2.imwrite(Path_face + id + "/face_img" + str(self.pic_num) + ".jpg", im_blank)  # 中文路径无法存储,故采用id为文件名
+                if self.pic_num >= 15:  # 当提取了15张图后，结束提取
+                    into_db = ThreadIntoDB()
+                    into_db.start()
+                    self.pic_num = 0
+                    self.new_create_time()
             except:
                 print("异常")
 
@@ -426,6 +431,43 @@ class CommonHelper:
     def read_qss(stylefile):
         with open(stylefile, 'r') as f:
             return f.read()
+
+
+lock = QMutex()  # 创建进程锁
+
+
+class ThreadIntoDB(QThread):
+    def __init__(self):
+        super().__init__()
+        self.id = "1234"
+    
+    def run(self):
+        lock.lock()
+        pics = os.listdir(Path_face + self.id)
+        feature_list = []
+        feature_average = []
+        for i in range(len(pics)):
+            pic_path = Path_face + self.id + "/" + pics[i]
+            print("读取成功：", pic_path)
+            img = io2.imread(pic_path)  # 读入图片
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 处理图片颜色空间转换为RGB
+            dets = detector(img_gray, 1)
+            if len(dets) != 0:  # 检测是否有人脸
+                shape = predictor(img_gray, dets[0])  # 检测人脸特征点
+                face_descriptor = facerec.compute_face_descriptor(img_gray, shape)  # 通过关键点获取人脸描述子
+                feature_list.append(face_descriptor)  # 把人脸描述子保存在list中
+            else:
+                face_descriptor = 0
+                print("未在照片中识别到人脸")
+        print(feature_list)
+        if len(feature_list) > 0:
+            for j in range(128):  # 128维度 ，防止越界
+                feature_average.append(0)
+                for i in range(len(feature_list)):
+                    feature_average[j] += feature_list[i][j]
+                feature_average[j] = (feature_average[j]) / len(feature_list)
+            insert_face(self.id, feature_average)  # 插入数据库
+        lock.unlock()
 
 
 if __name__ == '__main__':

@@ -239,7 +239,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
         # 1.image表示的是要检测的输入图像# 2.objects表示检测到的人脸目标序列# 3.scaleFactor表示每次图像尺寸减小的比例
         # for (x, y, w, h) in faces:
         #     # 画矩形
-        #     print("123")
+        #     print("1234")
         #     cv2.rectangle(show, (x, y), (x + w, y + w), (255, 0, 0))
         #     showImage = QImage(show.data, show.shape[1], show.shape[0], QImage.Format_RGB888)
         #     self.image.setPixmap(QPixmap.fromImage(showImage))
