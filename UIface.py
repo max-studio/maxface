@@ -23,6 +23,22 @@ predictor = dlib.shape_predictor('./model/shape_predictor_68_face_landmarks.dat'
 Path_face = "./data/face_img_database/"
 
 
+def distance(face_1, face_2):
+    """
+    计算欧式距离
+    :param face_1:
+    :param face_2:
+    :return:
+    """
+    face_1 = np.array(face_1)
+    face_2 = np.array(face_2)
+    dist = np.sqrt(np.sum(np.square(face_1 - face_2)))
+    if dist > 0.4:
+        return False
+    else:
+        return True
+
+
 class MainUI(QtWidgets.QWidget):
     """
     应用主界面
@@ -56,7 +72,9 @@ class MainUI(QtWidgets.QWidget):
         self.log_dialog = None  # 日志弹窗
         self.admin_dialog = None  # 管理员弹窗
         self.info_dialog = None  # 信息录入弹窗
-        self.pic_num = 0
+        self.pic_num = 0  # 图片存储标记，最多存储15张人脸
+        self.sign = 1  # 标记，1代表打卡，2代表录入
+        self.idn = None  # id号
         # 相机定时器
         self.timer_camera = QTimer()
         self.cap = cv2.VideoCapture()  # 设置相机
@@ -178,10 +196,11 @@ class MainUI(QtWidgets.QWidget):
         info = InfoDialog()
         info.setStyleSheet(CommonHelper.read_qss(style_file))
         self.info_dialog = info.exec_()
-        # if info.insert_data() is True:
-        #     self.new_create_time()
-        # time.sleep(10)
-        # self.timer_camera.stop()
+        idnumber = info.insert_data()
+        if idnumber is not None:
+            self.idn = idnumber
+            self.sign = 2
+            self.new_create_time()
     
     def new_create_time(self):
         if self.timer_camera.isActive() is False:
@@ -193,11 +212,15 @@ class MainUI(QtWidgets.QWidget):
                                     defaultButton=QMessageBox.Ok)
             else:
                 self.timer_camera.start(30)
-                self.button_check.setText("停止打卡")
+                if self.sign == 1:
+                    self.feature = load_face()
+                    self.button_check.setText("停止打卡")
         else:
             self.timer_camera.stop()
+            self.sign = 1
             self.cap.release()
             self.button_check.setText("开始打卡")
+            self.name_label.setText("暂无打卡信息")
             self.image.setPixmap(QPixmap(r"G:\githublocal\drawable\MaXlogo.jpg").scaled(600, 400))
     
     def show_camera(self):
@@ -225,24 +248,40 @@ class MainUI(QtWidgets.QWidget):
             show_image = QImage(show.data, show.shape[1], show.shape[0], QImage.Format_RGB888)
             self.image.setPixmap(QPixmap.fromImage(show_image))
             
-            # 保存截图
-            face_height = equal_face.bottom() - equal_face.top()
-            face_width = equal_face.right() - equal_face.left()
-            im_blank = np.zeros((face_height, face_width, 3), np.uint8)  # 数组
-            try:
-                id = "1234"
-                for ii in range(face_height):
-                    for jj in range(face_width):
-                        im_blank[ii][jj] = self.im_rd[int(equal_face.top()) + ii][int(equal_face.left()) + jj]
-                self.pic_num += 1
-                # cv2.imwrite(Path_face + id + "/face_img" + str(self.pic_num) + ".jpg", im_blank)  # 中文路径无法存储,故采用id为文件名
-                if self.pic_num >= 15:  # 当提取了15张图后，结束提取
-                    into_db = ThreadIntoDB()
-                    into_db.start()
-                    self.pic_num = 0
-                    self.new_create_time()
-            except:
-                print("异常")
+            if self.sign == 2:
+                # 保存截图
+                face_height = equal_face.bottom() - equal_face.top()
+                face_width = equal_face.right() - equal_face.left()
+                im_blank = np.zeros((face_height, face_width, 3), np.uint8)  # 初始化一个三通道的图像矩阵
+                # print(im_blank)
+                try:
+                    
+                    for height in range(face_height):
+                        for width in range(face_width):
+                            im_blank[height][width] = self.im_rd[int(equal_face.top()) + height][
+                                int(equal_face.left()) + width]
+                    self.pic_num += 1
+                    cv2.imwrite(Path_face + self.idn + "/face_img" + str(self.pic_num) + ".jpg",
+                                im_blank)  # 中文路径无法存储,故采用id为文件名
+                    if self.pic_num >= 15:  # 当提取了15张图后，结束提取
+                        into_db = ThreadIntoDB(self.idn)
+                        into_db.start()
+                        self.pic_num = 0
+                        self.new_create_time()
+                except:
+                    print("异常")
+            else:
+                try:
+                    shape = predictor(self.im_rd, equal_face)
+                    face_cap = facerec.compute_face_descriptor(self.im_rd, shape)
+                    
+                    # 将当前人脸与数据库人脸对比
+                    for i, face_data in enumerate(self.feature[1]):
+                        compare = distance(face_cap, face_data)
+                        if compare is True:
+                            self.name_label.setText(str(self.feature[0][i]))
+                except:
+                    print("异常")
 
 
 class LogDialog(QDialog):
@@ -290,7 +329,7 @@ class LogDialog(QDialog):
         self.model = QSqlQueryModel()
         self.model.setQuery(
             """select tb1.id,tb1.sname,tb2.clocktime,tb2.latetime from
-             staff_tb as tb1 join logcat_tb as tb2 where tb1.id = tb2.id""")
+             staff_tb as tb1 join logcat_tb as tb2 on tb1.id = tb2.id""")
         self.model.setHeaderData(0, Qt.Horizontal, "ID")
         self.model.setHeaderData(1, Qt.Horizontal, "姓名")
         self.model.setHeaderData(2, Qt.Horizontal, "打卡时间")
@@ -417,10 +456,46 @@ class InfoDialog(QDialog):
         if self.id_edit.text() and self.name_edit.text() and self.department_edit.text():
             # insert_staff(self.id_edit.text(), self.name_edit.text(), self.department_edit.text())
             self.close()
-            return True
+            return self.id_edit.text()
         else:
             pass
             # QMessageBox.information(self, "提示", "输入内容不能为空", QMessageBox.Yes)
+
+
+lock = QMutex()  # 创建进程锁
+
+
+class ThreadIntoDB(QThread):
+    def __init__(self, idn=None, parent=None):
+        super().__init__(parent)
+        self.id = idn
+    
+    def run(self):
+        lock.lock()
+        pics = os.listdir(Path_face + self.id)
+        feature_list = []
+        feature_average = []
+        for i in range(len(pics)):
+            pic_path = Path_face + self.id + "/" + pics[i]
+            print("读取成功：", pic_path)
+            img = cv2.imread(pic_path)  # 读入图片
+            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 处理图片颜色空间转换为RGB
+            dets = detector(img_gray, 1)
+            if len(dets) != 0:  # 检测是否有人脸
+                shape = predictor(img_gray, dets[0])  # 检测人脸特征点
+                face_descriptor = facerec.compute_face_descriptor(img_gray, shape)  # 通过特征点获取人脸描述子
+                feature_list.append(face_descriptor)  # 把人脸描述子保存在list中
+            else:
+                face_descriptor = 0
+                print("未在照片中识别到人脸")
+        if len(feature_list) > 0:
+            for j in range(128):  # 128维度 ，防止越界
+                feature_average.append(0)
+                for i in range(len(feature_list)):
+                    feature_average[j] += feature_list[i][j]
+                feature_average[j] = (feature_average[j]) / len(feature_list)  # 对齐
+            insert_face(self.id, feature_average)  # 插入数据库
+        lock.unlock()
 
 
 class CommonHelper:
@@ -431,43 +506,6 @@ class CommonHelper:
     def read_qss(stylefile):
         with open(stylefile, 'r') as f:
             return f.read()
-
-
-lock = QMutex()  # 创建进程锁
-
-
-class ThreadIntoDB(QThread):
-    def __init__(self):
-        super().__init__()
-        self.id = "1234"
-    
-    def run(self):
-        lock.lock()
-        pics = os.listdir(Path_face + self.id)
-        feature_list = []
-        feature_average = []
-        for i in range(len(pics)):
-            pic_path = Path_face + self.id + "/" + pics[i]
-            print("读取成功：", pic_path)
-            img = io2.imread(pic_path)  # 读入图片
-            img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # 处理图片颜色空间转换为RGB
-            dets = detector(img_gray, 1)
-            if len(dets) != 0:  # 检测是否有人脸
-                shape = predictor(img_gray, dets[0])  # 检测人脸特征点
-                face_descriptor = facerec.compute_face_descriptor(img_gray, shape)  # 通过关键点获取人脸描述子
-                feature_list.append(face_descriptor)  # 把人脸描述子保存在list中
-            else:
-                face_descriptor = 0
-                print("未在照片中识别到人脸")
-        print(feature_list)
-        if len(feature_list) > 0:
-            for j in range(128):  # 128维度 ，防止越界
-                feature_average.append(0)
-                for i in range(len(feature_list)):
-                    feature_average[j] += feature_list[i][j]
-                feature_average[j] = (feature_average[j]) / len(feature_list)
-            insert_face(self.id, feature_average)  # 插入数据库
-        lock.unlock()
 
 
 if __name__ == '__main__':

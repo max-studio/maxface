@@ -98,20 +98,16 @@ def load_admin(id, passwd):
         print("用户名或密码错误")
 
 
-def load_logcat():
+def load_face():
+    face_data = [[], []]
     sql = sqlite3.connect("sys_db.db")
     cur = sql.cursor()
-    cur.execute(
-        """
-        select tb1.id,tb1.sname,tb2.clocktime,tb2.latetime from staff_tb as tb1 join logcat_tb as tb2 where tb1.id = tb2.id
-        """)
+    cur.execute("select id,facearray from face_tb ")
     results = cur.fetchall()
-    if results:
-        cur.close()
-        sql.close()
-        return results
-    else:
-        pass
+    for row in results:
+        face_data[0].append(row[0])
+        face_data[1].append(decompress_data(row[1])["arr_0"])
+    return face_data
 
 
 def delete_data(id):
@@ -125,10 +121,7 @@ def delete_data(id):
 
 
 if __name__ == '__main__':
-    init_db()
-    # insert_staff(1234, "张三", "人事部")
-    # insert_admin(123456789, "张三", "abc123456")
-    # insert_logcat(1234, "2020-01-10 14:10:30", "20")
-    # load_admin(123456789, "abc123456")
+    # init_db()
     # delete_data(1234)
     # load_logcat()
+    load_face()

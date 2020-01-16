@@ -420,7 +420,7 @@ class Ui_MainWindow(QtWidgets.QWidget):
     def adapt_array(self, arr):
         
         out = io.BytesIO()
-        np.save(out, arr)
+        np.savez(out, arr)
         out.seek(0)
         dataa = out.read()
         # 压缩数据流
