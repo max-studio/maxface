@@ -10,7 +10,6 @@ from PyQt5.QtSql import QSqlDatabase, QSqlQueryModel
 from PyQt5.Qt import QThread, QMutex
 from skimage import io as io2
 from face_dbinit import *
-# from camera_show import *
 import numpy as np
 import cv2
 import dlib
