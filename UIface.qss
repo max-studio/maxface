@@ -1,0 +1,42 @@
+QWidget{
+    color:#232C51;
+    background:#F5F5F5;
+    border:1px solid #CDC0B0;
+    border-radius:5px;
+}
+
+#menu_bar{
+    background:#CDC9C9;
+}
+QPushButton
+{
+    color:rgb(100,100,100,250);
+    background-color:#CDC9C9;
+    border-style:outset;
+    border-width:0.5px;
+    border-color:#CDC9C9;
+    border-radius:10px;
+    font:bold 25px;
+    min-width:130px;
+    min-height:30px;
+    padding:4px;
+}
+
+QPushButton:pressed
+{
+     background-color:#CDC5BF;
+    border-style:inset;
+
+}
+#time_label{
+    color:rgb(100,100,100,250);
+    font-size:33px;
+    font-weight:bold;
+    font-family:Roman times;
+}
+#name_label{
+    color:rgb(100,100,100,250);
+    font-size:33px;
+    font-weight:bold;
+    font-family:Roman times;
+}
